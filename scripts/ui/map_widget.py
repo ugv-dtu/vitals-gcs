@@ -18,7 +18,9 @@ class MapWidget(QWebEngineView):
     def add_marker(self, lat, lon, label="Point"):
         if not self._loaded:
             return
-        self.page().runJavaScript(f"addUserMarker({lat}, {lon}, `{label}`);")
+        self.page().runJavaScript(
+            f"addUserMarker({lat}, {lon}, `{label}`);"
+        )
 
     def _html(self):
         return """
@@ -51,6 +53,13 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
 
 var gpsMarker = L.marker([0,0]).addTo(map);
 
+var routeLine = L.polyline([], {
+    color: '#00aaff',
+    weight: 4
+}).addTo(map);
+
+var lastPoint = null;
+
 var redIcon = L.icon({
     iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
     shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
@@ -61,8 +70,17 @@ var redIcon = L.icon({
 });
 
 function updateGPS(lat, lon){
-    gpsMarker.setLatLng([lat, lon]);
-    map.setView([lat, lon], map.getZoom());
+    var point = [lat, lon];
+
+    gpsMarker.setLatLng(point);
+    map.setView(point, map.getZoom());
+
+    if (!lastPoint ||
+        lastPoint[0] !== lat ||
+        lastPoint[1] !== lon) {
+        routeLine.addLatLng(point);
+        lastPoint = point;
+    }
 }
 
 function addUserMarker(lat, lon, label){
