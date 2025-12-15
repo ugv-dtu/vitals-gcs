@@ -1,6 +1,0 @@
-plan:
-maneuvering
-waypoint marker
-parameter change in ui
-servo control
-ml model
