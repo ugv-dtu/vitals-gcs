@@ -39,8 +39,8 @@ def main():
     controller.updated.connect(
         lambda lx, ly, rx, ry: (
             joy.update({"lx": lx, "ly": ly, "rx": rx, "ry": ry}),
-            ui.left_joy.update_stick(lx, ly),
-            ui.right_joy.update_stick(rx, ry)
+            ui.left_joy.update_stick(rx, -ry),
+            ui.right_joy.update_stick(lx, -ly)
         )
     )
 
@@ -60,15 +60,28 @@ def main():
     }
     flight = {"mode": None, "armed": None}
 
-    def send_manual_control(lx, ly, rx, ry):
-        def clamp(v, lo, hi):
-            return max(lo, min(hi, v))
+    MAX_AXIS = 0.8347
+    DEADZONE = 0.05
 
-        pitch = int(clamp(ry * 1000, -1000, 1000))
-        roll = int(clamp(rx * 1000, -1000, 1000))
-        throttle = int(clamp((ly + 1) * 500, 0, 1000))
-        yaw = int(clamp(lx * 1000, -1000, 1000))
-        pitch = -pitch
+    def norm(v):
+        if abs(v) < DEADZONE:
+            return 0.0
+        v = max(-MAX_AXIS, min(MAX_AXIS, v))
+        return v / MAX_AXIS
+
+    def send_manual_control(lx, ly, rx, ry):
+        
+        lx = norm(lx)
+        ly = norm(ly)
+        rx = norm(rx)
+        ry = norm(ry)
+
+        roll = int(lx * 1000)
+        pitch = int(ly * 1000)
+        yaw = int(rx * 1000)
+        throttle = int((1 - ry) * 500)
+        throttle = max(0, min(1000, throttle))
+
         mav.mav.manual_control_send(
             mav.master.target_system,
             pitch,

@@ -33,7 +33,7 @@ class ControllerReader(QObject):
                 self.js.get_axis(0),
                 -self.js.get_axis(1),
                 self.js.get_axis(3),
-                -self.js.get_axis(4),
+                -self.js.get_axis(2),
             )
         except pygame.error:
             pass

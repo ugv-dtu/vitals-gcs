@@ -1,13 +1,13 @@
+import cv2
 from PySide6.QtWidgets import QWidget, QLabel, QVBoxLayout
-from PySide6.QtMultimedia import QCamera, QMediaCaptureSession, QMediaDevices, QVideoSink
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QPixmap
+from PySide6.QtCore import Qt, QTimer
+from PySide6.QtGui import QImage, QPixmap
 
 class CameraWidget(QWidget):
     def __init__(self):
         super().__init__()
 
-        self.label = QLabel("Camera Feed")
+        self.label = QLabel("FPV Camera")
         self.label.setAlignment(Qt.AlignCenter)
         self.label.setStyleSheet("""
             background:#2a2a2a;
@@ -17,37 +17,36 @@ class CameraWidget(QWidget):
         """)
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(0,0,0,0)
+        layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(self.label)
 
-        self.video_sink = QVideoSink()
-        self.video_sink.videoFrameChanged.connect(self.on_frame)
+        # Open FPV camera directly via V4L2
+        self.cap = cv2.VideoCapture("/dev/video2", cv2.CAP_V4L2)
+        self.cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"YUYV"))
+        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+        self.cap.set(cv2.CAP_PROP_FPS, 30)
 
-        devices = QMediaDevices.videoInputs()
-        if not devices:
-            self.label.setText("No camera found")
+        if not self.cap.isOpened():
+            self.label.setText("FPV camera not found")
             return
 
-        self.camera = QCamera(devices[0])
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self.update_frame)
+        self.timer.start(33)  # ~30 FPS
 
-        self.capture = QMediaCaptureSession()
-        self.capture.setCamera(self.camera)
-        self.capture.setVideoSink(self.video_sink)
-
-        self.camera.start()
-
-    def on_frame(self, frame):
-        if not frame.isValid():
+    def update_frame(self):
+        ret, frame = self.cap.read()
+        if not ret:
             return
 
-        image = frame.toImage()
-        if image.isNull():
-            return
+        # Convert BGR → RGB
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
-        image = image.mirrored(True, False)
+        h, w, ch = frame.shape
+        image = QImage(frame.data, w, h, ch * w, QImage.Format_RGB888)
 
         pixmap = QPixmap.fromImage(image)
-
         self.label.setPixmap(
             pixmap.scaled(
                 self.label.size(),
@@ -56,18 +55,7 @@ class CameraWidget(QWidget):
             )
         )
 
-    def resizeEvent(self, event):
-        if self.label.pixmap():
-            self.label.setPixmap(
-                self.label.pixmap().scaled(
-                    self.label.size(),
-                    Qt.KeepAspectRatio,
-                    Qt.SmoothTransformation
-                )
-            )
-        super().resizeEvent(event)
-
     def closeEvent(self, event):
-        if self.camera.isActive():
-            self.camera.stop()
+        if self.cap.isOpened():
+            self.cap.release()
         event.accept()
